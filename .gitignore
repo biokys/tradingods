@@ -1,0 +1,6 @@
+bin/
+libs/
+dist/
+logs/
+.settings/
+*.class
