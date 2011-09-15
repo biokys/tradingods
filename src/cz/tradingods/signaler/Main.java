@@ -90,7 +90,7 @@ public class Main {
     public static void main(String[] args) throws Exception {
         //get the instance of the IClient interface
         //final IClient client = ClientFactory.getDefaultInstance();
-        final IClient client = ClientFactory.getDefaultInstance();
+        final ITesterClient client = TesterFactory.getDefaultInstance();
 
         //set the listener that will receive system events
         client.setSystemListener(new ISystemListener() {
@@ -164,9 +164,13 @@ public class Main {
         
         LOGGER.info("Subscribing instruments...");
         client.setSubscribedInstruments(instruments);
-        
         LOGGER.info("Downloading data");
 
+        Future<?> future = client.downloadData(null);
+        //wait for downloading to complete
+        future.get();
+
+        
         //start the strategy
         LOGGER.info("Starting strategy");
         client.startStrategy(new VladoStrategy());

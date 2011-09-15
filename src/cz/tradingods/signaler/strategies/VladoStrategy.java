@@ -32,14 +32,16 @@ package cz.tradingods.signaler.strategies;
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 
-import javax.mail.MessagingException;
+import org.apache.log4j.Logger;
 
 import com.dukascopy.api.*;
 
 import cz.tradingods.common.IndicatorHelper;
 import cz.tradingods.common.MailHelper;
 import cz.tradingods.common.PropertyHelper;
+import cz.tradingods.signaler.ValueContainer;
 
 public class VladoStrategy extends MyStrategy {
 	private IEngine engine = null;
@@ -47,60 +49,23 @@ public class VladoStrategy extends MyStrategy {
 	private IHistory history;
 	private int tagCounter = 0;
 	private IConsole console;
-
-	private int ema1Param = 3;
-	private int ema2Param = 13;
-	private int cciParam = 14;
-	private int macdAParam = 5;
-	private int macdBParam = 35;
-	private int macdCParam = 5;
-
-	private Period firstTF = PropertyHelper.getTimeframes().get(0);
-	private Period secondTF = PropertyHelper.getTimeframes().get(1);
-
-	double[][] emaFast_1 = new double[Instrument.values().length][];
-	double[][] emaSlow_1 = new double[Instrument.values().length][];
-	double[][] macd_1 = new double[Instrument.values().length][];
-	double[] cci_1 = new double[Instrument.values().length];
-	int lastCrossoverType_1 = IndicatorHelper.CROSSOVER_NONE;
-
-	double[][] ema13_2 = new double[Instrument.values().length][];
-	double[][] ema3_2 = new double[Instrument.values().length][];
-	double[][] macd_2 = new double[Instrument.values().length][];
-	double[] cci_2 = new double[Instrument.values().length];
-	int lastCrossoverType_2 = IndicatorHelper.CROSSOVER_NONE;
+	
+	private static Logger log = Logger.getLogger(VladoStrategy.class);
 
 	
-
-	public static Date[] crossover1hour = new Date[Instrument.values().length];
-	public static Date[] crossover2hour = new Date[Instrument.values().length];
-
-	public void setParams(int cci, int ema1, int ema2, int[] macd) {
-		this.cciParam = cci;
-		this.ema1Param = ema1;
-		this.ema2Param = ema2;
-		this.macdAParam = macd[0];
-		this.macdBParam = macd[1];
-		this.macdCParam = macd[2];
-	}
-	
-	public Integer[] getParams() {
-		Integer[] params = new Integer[6];
-		params[0] = cciParam;
-		params[1] = ema1Param;
-		params[2] = ema2Param;
-		params[3] =  macdAParam;
-		params[4] = macdBParam;
-		params[5] = macdCParam;
-		return params;
-	}
+	private int emaSlowParam = PropertyHelper.getCustomParam("vladostrategy", "emaslow");
+	private int emaFastParam = PropertyHelper.getCustomParam("vladostrategy", "emafast");
+	private int cciParam = PropertyHelper.getCustomParam("vladostrategy", "cci");
+	private int macdAParam = PropertyHelper.getCustomParams("vladostrategy", "macd")[0];
+	private int macdBParam = PropertyHelper.getCustomParams("vladostrategy", "macd")[1];
+	private int macdCParam = PropertyHelper.getCustomParams("vladostrategy", "macd")[2];
+	private List<Period> periods = PropertyHelper.getTimeframes("vladostrategy");
 
 	public void onStart(IContext context) throws JFException {
 		engine = context.getEngine();
 		indicators = context.getIndicators();
 		this.console = context.getConsole();
 		this.history = context.getHistory();
-
 		console.getOut().println("Started");
 	}
 
@@ -114,134 +79,64 @@ public class VladoStrategy extends MyStrategy {
 	public void onTick(Instrument instrument, ITick tick) throws JFException {
 	}
 
-	public void onBar(Instrument instrument, Period period, IBar askBar, IBar bidBar) throws JFException {
-		// 1. TF
-		if (period == firstTF) {
-			IBar prevBar_1 = history.getBar(instrument, firstTF, OfferSide.BID, 1);
-			emaFast_1[instrument.ordinal()] = indicators.ema(instrument, firstTF, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, ema2Param, Filter.NO_FILTER, 2, prevBar_1.getTime(), 0);
-			emaSlow_1[instrument.ordinal()] = indicators.ema(instrument, firstTF, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, ema1Param, Filter.NO_FILTER, 2, prevBar_1.getTime(), 0);
-			macd_1[instrument.ordinal()] = indicators.macd(instrument, firstTF, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, macdAParam, macdBParam, macdCParam, 0);
-			cci_1[instrument.ordinal()] = indicators.cci(instrument, firstTF, OfferSide.BID, cciParam, 0);
-
-			String s = "NOTHING GENERATED - FAIL?"; 
+	public void onBar(Instrument instrument, Period actualPeriod, IBar askBar, IBar bidBar) throws JFException {
+		for (Period period : periods) {
+			if (!period.equals(actualPeriod)) 
+				continue;
+			
+			IBar prevBar_1 = history.getBar(instrument, period, OfferSide.BID, 1);
+			double[] emaFast = indicators.ema(instrument, period, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, emaFastParam, Filter.NO_FILTER, 2, prevBar_1.getTime(), 0);
+			double[] emaSlow = indicators.ema(instrument, period, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, emaSlowParam, Filter.NO_FILTER, 2, prevBar_1.getTime(), 0);
+			double[] macd = indicators.macd(instrument, period, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, macdAParam, macdBParam, macdCParam, 0);
+			double cci = indicators.cci(instrument, period, OfferSide.BID, cciParam, 0);
 
 			// otestuji zda doslo k prekrizeni indikatoru
-			int result = IndicatorHelper.testForCrossover(emaSlow_1[instrument.ordinal()], emaFast_1[instrument.ordinal()]);
+			int result = IndicatorHelper.testForCrossover(emaFast, emaSlow);
 			// pokud doslo k prekrizeni
 			if (result != IndicatorHelper.CROSSOVER_NONE) {
-				// nastavim typ posledniho prekrizeni na aktualni
-				lastCrossoverType_1 = result;
 				// pokud dojde k prekrizeni ze spoda nahoru a macd je > 0 a cci je > 0
-				if (result == IndicatorHelper.CROSSOVER_DOWN_UP && macd_1[instrument.ordinal()][0] > 0 && cci_1[instrument.ordinal()] > 0) {
+				if (result == IndicatorHelper.CROSSOVER_DOWN_UP && macd[0] > 0 && cci > 0) {
 					// pak vygeneruji zpravu
-					s = getMessage(instrument, bidBar, firstTF, IndicatorHelper.CROSSOVER_DOWN_UP, 1);
+					String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_DOWN_UP, cci);
+					log.info(s);
+					MailHelper.sendEmail(s);
 				}
 				// analogicky
-				if (result == IndicatorHelper.CROSSOVER_UP_DOWN && macd_1[instrument.ordinal()][0] < 0 && cci_1[instrument.ordinal()] < 0) {
-					s = getMessage(instrument, bidBar, firstTF, IndicatorHelper.CROSSOVER_UP_DOWN, 1);
+				if (result == IndicatorHelper.CROSSOVER_UP_DOWN && macd[0] < 0 && cci < 0) {
+					String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_UP_DOWN, cci);
+					log.info(s);
+					MailHelper.sendEmail(s);
 				}
-				// vypisu do konzole
-				System.out.println(s);
-				// poslu email
-				MailHelper.sendEmail(s);
 				// zapamatuji si cas prekrizeni
-				crossover1hour[instrument.ordinal()] = new Date(bidBar.getTime());
+				ValueContainer.putCrossoverDate(period, instrument, new Date(bidBar.getTime()));
+				// nastavim typ prekrizeni
+				ValueContainer.putLastCrossoverType(period, instrument, result);
 			}
 
 			// pokud nedoslo k prekrizeni
 			if (result == IndicatorHelper.CROSSOVER_NONE) {
 				// a je nastavena posledni doba prekrizeni
-				if (crossover1hour[instrument.ordinal()] != null) {
+				if (ValueContainer.getCrossoverDate(period, instrument) != null) {
 					// a byly splneny ostatni podminky prekrizeni
-					if (macd_1[instrument.ordinal()][0] > 0 && cci_1[instrument.ordinal()] > 0) {
-						s = getMessage(instrument, bidBar, firstTF, IndicatorHelper.CROSSOVER_DOWN_UP, 1);
-						System.out.println(s);
+					if (ValueContainer.getLastCrossoverType(period, instrument) == IndicatorHelper.CROSSOVER_DOWN_UP && macd[0] > 0 && cci > 0) {
+						String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_DOWN_UP, cci);
+						log.info(s);
 						MailHelper.sendEmail(s);
-						crossover1hour[instrument.ordinal()] = null;
-						lastCrossoverType_1 = IndicatorHelper.CROSSOVER_NONE;
+						ValueContainer.putCrossoverDate(period, instrument, null);
+						ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
 					}
 
-					if (macd_1[instrument.ordinal()][0] < 0 && cci_1[instrument.ordinal()] < 0) {
-						s = getMessage(instrument, bidBar, firstTF, IndicatorHelper.CROSSOVER_UP_DOWN, 1);
-						System.out.println(s);
+					if (ValueContainer.getLastCrossoverType(period, instrument) == IndicatorHelper.CROSSOVER_UP_DOWN && macd[0] < 0 && cci < 0) {
+						String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_UP_DOWN, cci);
+						log.info(s);
 						MailHelper.sendEmail(s);
-						crossover1hour[instrument.ordinal()] = null;
-						lastCrossoverType_1 = IndicatorHelper.CROSSOVER_NONE;
+						ValueContainer.putCrossoverDate(period, instrument, null);
+						ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
 					}
 				}
 			}
 		}
 
-
-
-
-
-		// 2. TF
-		/*if (period == secondTF) {
-			IBar prevBar_2 = history.getBar(instrument, secondTF, OfferSide.BID, 1);
-			ema13_2[instrument.ordinal()] = indicators.ema(instrument, secondTF, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 13, Filter.NO_FILTER, 2, prevBar_2.getTime(), 0);
-			ema3_2[instrument.ordinal()] = indicators.ema(instrument, secondTF, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 3, Filter.NO_FILTER, 2, prevBar_2.getTime(), 0);
-			macd_2[instrument.ordinal()] = indicators.macd(instrument, secondTF, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, 5, 35, 5, 0);
-			cci_2[instrument.ordinal()] = indicators.cci(instrument, secondTF, OfferSide.BID, 14, 0);
-
-			String s; 
-
-			int result = testForCrossover(ema3_2[instrument.ordinal()], ema13_2[instrument.ordinal()]);
-			if (result != CROSSOVER_NONE) {
-				lastCrossoverType_2 = result;
-				if (result == CROSSOVER_DOWN_UP && macd_2[instrument.ordinal()][0] > 0 && cci_2[instrument.ordinal()] > 0) {
-					s = getMessage(instrument, bidBar, secondTF, CROSSOVER_DOWN_UP, 1);
-					System.out.println(s);
-					sendEmail(s);
-				}
-				if (result == CROSSOVER_UP_DOWN && macd_2[instrument.ordinal()][0] < 0 && cci_2[instrument.ordinal()] < 0) {
-					s = getMessage(instrument, bidBar, secondTF, CROSSOVER_UP_DOWN, 1);
-					System.out.println(s);
-					sendEmail(s);
-				}
-
-				crossover2hour[instrument.ordinal()] = new Date(bidBar.getTime());
-
-			}
-
-			if (result == CROSSOVER_NONE) {
-				if (crossover2hour[instrument.ordinal()] != null) {
-					if (lastCrossoverType_2 == CROSSOVER_DOWN_UP && macd_2[instrument.ordinal()][0] > 0 && cci_2[instrument.ordinal()] > 0) {
-						s = getMessage(instrument, bidBar, secondTF, CROSSOVER_DOWN_UP, 1);
-						System.out.println(s);
-						sendEmail(s);
-						crossover2hour[instrument.ordinal()] = null;
-						lastCrossoverType_2 = CROSSOVER_NONE;
-					}
-
-					if (lastCrossoverType_2 == CROSSOVER_UP_DOWN && macd_2[instrument.ordinal()][0] < 0 && cci_2[instrument.ordinal()] < 0) {
-						s = getMessage(instrument, bidBar, secondTF, CROSSOVER_UP_DOWN, 1);
-						System.out.println(s);
-						sendEmail(s);
-						crossover2hour[instrument.ordinal()] = null;
-						lastCrossoverType_2 = CROSSOVER_NONE;
-					}
-				}
-			}
-		}*/
-
-	}
-
-
-	public void onMessage(IMessage message) throws JFException {
-	}
-
-	public void onAccount(IAccount account) throws JFException {
-	}
-
-	protected int positionsTotal(Instrument instrument) throws JFException {
-		int counter = 0;
-		for (IOrder order : engine.getOrders(instrument)) {
-			if (order.getState() == IOrder.State.FILLED) {
-				counter++;
-			}
-		}
-		return counter;
 	}
 
 	protected String getLabel(Instrument instrument) {
@@ -255,43 +150,16 @@ public class VladoStrategy extends MyStrategy {
 	String dateFormat = "dd.MM HH:mm";
 	SimpleDateFormat sdf = new SimpleDateFormat(dateFormat);
 
-	public String getMessage(Instrument instrument, IBar bar, Period period, int crossOverType, int timeframeNum) {
-		String msg = "";
-		String typeStr = "";
+	public String getMessage(Instrument instrument, IBar bar, Period period, int crossOverType,double cci) {
 		String nowStr = sdf.format(new Date(bar.getTime()));
-
+		String typeStr = IndicatorHelper.getCrossoverTypeAsString(crossOverType);
 		String crossDate = "";
 		String bid = getRoundedNumber(bar.getClose(), 5);
-		double cci = 0;
 
-		switch (timeframeNum) {
-		case 1:
-			if (crossover1hour[instrument.ordinal()] != null)
-				crossDate = sdf.format(crossover1hour[instrument.ordinal()]) + " ";
-			cci = cci_1[instrument.ordinal()];
-			break;
-		case 2:
-			if (crossover2hour[instrument.ordinal()] != null)
-				crossDate = sdf.format(crossover2hour[instrument.ordinal()]) + " ";
-			cci = cci_2[instrument.ordinal()];
-			break;
-		}
+		if (ValueContainer.getCrossoverDate(period, instrument) != null)
+			crossDate = sdf.format(ValueContainer.getCrossoverDate(period, instrument)) + " ";
 
-		switch (crossOverType) {
-		case IndicatorHelper.CROSSOVER_UP_DOWN:
-			typeStr = "SELL";
-			break;
-		case IndicatorHelper.CROSSOVER_DOWN_UP:
-			typeStr = "BUY";
-			break;
-		case IndicatorHelper.CROSSOVER_NONE:
-		default:
-			typeStr = "NONE";
-			break;
-		}
-		msg = nowStr + " " + instrument.name() + " " + getTimeFrame(period) + " | " + "EMAs " + typeStr + " " + crossDate + "(bid:" + bid + ",cci:" + getRoundedNumber(cci, 2) + ")";
-		showStrategyParams();
-		return msg;
+		return nowStr + " " + instrument.name() + " " + getTimeFrame(period) + " | " + "EMAs " + typeStr + " " + crossDate + "(bid:" + bid + ",cci:" + getRoundedNumber(cci, 2) + ")";
 	}
 
 	private String getTimeFrame(Period period) {
@@ -305,6 +173,18 @@ public class VladoStrategy extends MyStrategy {
 	}
 
 	public void showStrategyParams() {
-		System.out.println("cci: " + cciParam + ", ema1: " + ema1Param + ", ema2: " + ema2Param + ", macd: " + macdAParam + ", " + macdBParam + ", " + macdCParam);
+		System.out.println("cci: " + cciParam + ", emaslow: " + emaSlowParam + ", emafast: " + emaFastParam + ", macd: " + macdAParam + ", " + macdBParam + ", " + macdCParam);
+	}
+
+	@Override
+	public void onAccount(IAccount arg0) throws JFException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onMessage(IMessage arg0) throws JFException {
+		// TODO Auto-generated method stub
+		
 	}
 }

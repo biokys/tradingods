@@ -24,4 +24,21 @@ public class IndicatorHelper {
 
 		return result;
 	}
+	
+	public static String getCrossoverTypeAsString(int crossOverType) {
+		String typeStr;
+		switch (crossOverType) {
+		case IndicatorHelper.CROSSOVER_UP_DOWN:
+			typeStr = "SELL";
+			break;
+		case IndicatorHelper.CROSSOVER_DOWN_UP:
+			typeStr = "BUY";
+			break;
+		case IndicatorHelper.CROSSOVER_NONE:
+		default:
+			typeStr = "NONE";
+			break;
+		}
+		return typeStr;
+	}
 }
