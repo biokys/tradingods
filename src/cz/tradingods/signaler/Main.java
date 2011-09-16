@@ -42,6 +42,8 @@ import cz.tradingods.common.PropertyHelper;
 import cz.tradingods.optimizer.FileHelper;
 import cz.tradingods.signaler.strategies.VladoStrategy;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -57,9 +59,10 @@ import org.slf4j.Logger;
 public class Main {
 	private static final Logger log = LoggerFactory.getLogger(Main.class);
 
-	private static final boolean HISTORICAL_DATA = PropertyHelper.onHistoricalData();
+	public static final boolean HISTORICAL_DATA = PropertyHelper.onHistoricalData();
+	public static final boolean TRADING_ENABLED = true;
 	private static final Date[] HISTORICAL_DATA_INTERVAL = PropertyHelper.getHistoricalDataInterval();
-
+	
 	//url of the DEMO jnlp
 	private static String jnlpUrl = PropertyHelper.getFxApiJNLP();
 	//user name
@@ -77,7 +80,7 @@ public class Main {
 		} else {
 			client = TesterFactory.getDefaultInstance();
 		}
-
+		PropertyHelper.setOptimizationParams("emaslow=13", "emafast=3", "cci=13", "macd=10,23,10", "pt=80", "sl=30");
 		//set the listener that will receive system events
 		client.setSystemListener(new ISystemListener() {
 			private int lightReconnects = 3;
@@ -91,6 +94,11 @@ public class Main {
 			@Override
 			public void onStop(long processId) {
 				log.info("Strategy stopped: " + processId);
+				try {
+					((ITesterClient)client).createReport(processId, new File("report.html"));
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 				if (client.getStartedStrategies().size() == 0) {
 					System.exit(0);
 				}

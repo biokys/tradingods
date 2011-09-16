@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 
 import org.apache.log4j.Logger;
 
@@ -13,6 +14,7 @@ import com.dukascopy.api.IEngine.OrderCommand;
 import cz.tradingods.common.IndicatorHelper;
 import cz.tradingods.common.MailHelper;
 import cz.tradingods.common.PropertyHelper;
+import cz.tradingods.signaler.Main;
 import cz.tradingods.signaler.ValueContainer;
 
 public class VladoStrategy extends MyStrategy {
@@ -25,6 +27,8 @@ public class VladoStrategy extends MyStrategy {
 	private static Logger log = Logger.getLogger(VladoStrategy.class);
 
 
+	private int profitTargetParam = PropertyHelper.getCustomParam("vladostrategy", "pt");
+	private int stopLostParam = PropertyHelper.getCustomParam("vladostrategy", "sl");
 	private int emaSlowParam = PropertyHelper.getCustomParam("vladostrategy", "emaslow");
 	private int emaFastParam = PropertyHelper.getCustomParam("vladostrategy", "emafast");
 	private int cciParam = PropertyHelper.getCustomParam("vladostrategy", "cci");
@@ -74,11 +78,13 @@ public class VladoStrategy extends MyStrategy {
 					// pak vygeneruji zpravu
 					String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_DOWN_UP, cci);
 					proccessMessage(s);
+					enterPosition(instrument, OrderCommand.BUY, bidBar);
 					ValueContainer.putCrossoverDate(period, instrument, null);
 					ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
 				} else if (result == IndicatorHelper.CROSSOVER_UP_DOWN && macd[0] < 0 && cci < 0) {
 					String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_UP_DOWN, cci);
 					proccessMessage(s);
+					enterPosition(instrument, OrderCommand.SELL, bidBar);
 					ValueContainer.putCrossoverDate(period, instrument, null);
 					ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
 				} else {
@@ -94,6 +100,7 @@ public class VladoStrategy extends MyStrategy {
 					if (ValueContainer.getLastCrossoverType(period, instrument) == IndicatorHelper.CROSSOVER_DOWN_UP && macd[0] > 0 && cci > 0) {
 						String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_DOWN_UP, cci);
 						proccessMessage(s);
+						enterPosition(instrument, OrderCommand.BUY, bidBar);
 						ValueContainer.putCrossoverDate(period, instrument, null);
 						ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
 					}
@@ -101,26 +108,24 @@ public class VladoStrategy extends MyStrategy {
 					if (ValueContainer.getLastCrossoverType(period, instrument) == IndicatorHelper.CROSSOVER_UP_DOWN && macd[0] < 0 && cci < 0) {
 						String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_UP_DOWN, cci);
 						proccessMessage(s);
+						enterPosition(instrument, OrderCommand.SELL, bidBar);
 						ValueContainer.putCrossoverDate(period, instrument, null);
 						ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
 					}
 				}
 			}
 		}
-
 	}
 
 	protected String getLabel(Instrument instrument) {
 		String label = instrument.name();
-		label = label.substring(0, 2) + label.substring(3, 5);
 		label = label + (tagCounter++);
 		label = label.toLowerCase();
 		return label;
 	}
 
-	String dateFormat = "dd.MM HH:mm";
-	SimpleDateFormat sdf = new SimpleDateFormat(dateFormat);
-
+	SimpleDateFormat sdf = new SimpleDateFormat("dd.MM HH:mm") {{setTimeZone(TimeZone.getTimeZone("GMT"));}};;
+	
 	public String getMessage(Instrument instrument, IBar bar, Period period, int crossOverType,double cci) {
 		String nowStr = sdf.format(new Date(bar.getTime()));
 		String typeStr = IndicatorHelper.getCrossoverTypeAsString(crossOverType);
@@ -152,11 +157,23 @@ public class VladoStrategy extends MyStrategy {
 		MailHelper.sendEmail(s);
 	}
 
-	public void enterPosition(Instrument instrument, IBar bidBar, OrderCommand orderCommand, double amount) throws JFException {
-		if (engine.getOrders().size() > 0)
+	private void enterPosition(Instrument instrument, OrderCommand orderCommand, IBar bar) throws JFException {
+		if (!Main.TRADING_ENABLED)
+			return;
+		if (engine.getOrders(instrument).size() > 0)
 			return;
 
-		engine.submitOrder(getLabel(instrument), instrument, orderCommand, amount);
+		double profitTargetPrice = 0;
+		double stopLostPrice = 0;
+		
+		if (orderCommand == OrderCommand.BUY) {
+			profitTargetPrice = bar.getClose() + instrument.getPipValue() * profitTargetParam;
+			stopLostPrice = bar.getClose() - instrument.getPipValue() * stopLostParam;
+		} else {
+			profitTargetPrice = bar.getClose() - instrument.getPipValue() * profitTargetParam;
+			stopLostPrice = bar.getClose() + instrument.getPipValue() * stopLostParam;
+		}
+		engine.submitOrder(getLabel(instrument), instrument, orderCommand, 0.001, 0, 0, stopLostPrice, profitTargetPrice);
 	}
 
 	@Override
