@@ -1,6 +1,9 @@
 package cz.tradingods.common;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.ResourceBundle;
 
@@ -72,6 +75,28 @@ public class PropertyHelper {
 			periods.add(p);
 		}
 		return periods;
+	}
+	
+	public static boolean onHistoricalData() {
+		return getBooleanProperty("historical.backtest");
+	}
+	
+	private static SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm");
+	private static Date getDate(String str) throws ParseException {
+		return sdf.parse(str);
+	}
+	public static Date[] getHistoricalDataInterval() {
+		String strFrom = getStringProperty("historical.backtest.interval.from");
+		String strTo = getStringProperty("historical.backtest.interval.to");
+		Date[] dates = new Date[2];
+		try {
+		dates[0] = getDate(strFrom);
+		dates[1] = getDate(strTo);
+		} catch (ParseException e) {
+			log.error("Backtest interval parsing error!");
+			System.exit(0);
+		}
+		return dates;
 	}
 	
 	public static int[] getCustomParams(String strategyName, String paramName) {

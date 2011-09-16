@@ -25,4 +25,4 @@ set classpath=%classpath%;libs/activation.jar
 set classpath=%classpath%;bin/
 set classpath=%classpath%;config/
 
-java cz.tradingods.SwMain
+java cz.tradingods.signaler.Main

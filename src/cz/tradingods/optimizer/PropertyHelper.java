@@ -1,4 +1,4 @@
-package cz.tradingods.optimiser;
+package cz.tradingods.optimizer;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -1,4 +1,4 @@
-package cz.tradingods.optimiser;
+package cz.tradingods.optimizer;
 public class Values {
 
 	int cci;

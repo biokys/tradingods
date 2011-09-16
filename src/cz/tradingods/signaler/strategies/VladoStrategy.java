@@ -1,32 +1,3 @@
-/*
- * Copyright (c) 2009 Dukascopy (Suisse) SA. All Rights Reserved.
- * 
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are met:
- * 
- * -Redistribution of source code must retain the above copyright notice, this
- *  list of conditions and the following disclaimer.
- * 
- * -Redistribution in binary form must reproduce the above copyright notice, 
- *  this list of conditions and the following disclaimer in the documentation
- *  and/or other materials provided with the distribution.
- * 
- * Neither the name of Dukascopy (Suisse) SA or the names of contributors may 
- * be used to endorse or promote products derived from this software without 
- * specific prior written permission.
- * 
- * This software is provided "AS IS," without a warranty of any kind. ALL 
- * EXPRESS OR IMPLIED CONDITIONS, REPRESENTATIONS AND WARRANTIES, INCLUDING
- * ANY IMPLIED WARRANTY OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
- * OR NON-INFRINGEMENT, ARE HEREBY EXCLUDED. DUKASCOPY (SUISSE) SA ("DUKASCOPY")
- * AND ITS LICENSORS SHALL NOT BE LIABLE FOR ANY DAMAGES SUFFERED BY LICENSEE
- * AS A RESULT OF USING, MODIFYING OR DISTRIBUTING THIS SOFTWARE OR ITS
- * DERIVATIVES. IN NO EVENT WILL DUKASCOPY OR ITS LICENSORS BE LIABLE FOR ANY LOST 
- * REVENUE, PROFIT OR DATA, OR FOR DIRECT, INDIRECT, SPECIAL, CONSEQUENTIAL, 
- * INCIDENTAL OR PUNITIVE DAMAGES, HOWEVER CAUSED AND REGARDLESS OF THE THEORY 
- * OF LIABILITY, ARISING OUT OF THE USE OF OR INABILITY TO USE THIS SOFTWARE, 
- * EVEN IF DUKASCOPY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
- */
 package cz.tradingods.signaler.strategies;
 
 import java.math.BigDecimal;
@@ -37,6 +8,7 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import com.dukascopy.api.*;
+import com.dukascopy.api.IEngine.OrderCommand;
 
 import cz.tradingods.common.IndicatorHelper;
 import cz.tradingods.common.MailHelper;
@@ -49,10 +21,10 @@ public class VladoStrategy extends MyStrategy {
 	private IHistory history;
 	private int tagCounter = 0;
 	private IConsole console;
-	
+
 	private static Logger log = Logger.getLogger(VladoStrategy.class);
 
-	
+
 	private int emaSlowParam = PropertyHelper.getCustomParam("vladostrategy", "emaslow");
 	private int emaFastParam = PropertyHelper.getCustomParam("vladostrategy", "emafast");
 	private int cciParam = PropertyHelper.getCustomParam("vladostrategy", "cci");
@@ -83,7 +55,7 @@ public class VladoStrategy extends MyStrategy {
 		for (Period period : periods) {
 			if (!period.equals(actualPeriod)) 
 				continue;
-			
+
 			IBar prevBar_1 = history.getBar(instrument, period, OfferSide.BID, 1);
 			double[] emaFast = indicators.ema(instrument, period, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, emaFastParam, Filter.NO_FILTER, 2, prevBar_1.getTime(), 0);
 			double[] emaSlow = indicators.ema(instrument, period, OfferSide.BID, IIndicators.AppliedPrice.CLOSE, emaSlowParam, Filter.NO_FILTER, 2, prevBar_1.getTime(), 0);
@@ -94,42 +66,41 @@ public class VladoStrategy extends MyStrategy {
 			int result = IndicatorHelper.testForCrossover(emaFast, emaSlow);
 			// pokud doslo k prekrizeni
 			if (result != IndicatorHelper.CROSSOVER_NONE) {
+				// vymazeme hodnoty minuleho prekrizeni
+				ValueContainer.putCrossoverDate(period, instrument, null);
+				ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
 				// pokud dojde k prekrizeni ze spoda nahoru a macd je > 0 a cci je > 0
 				if (result == IndicatorHelper.CROSSOVER_DOWN_UP && macd[0] > 0 && cci > 0) {
 					// pak vygeneruji zpravu
 					String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_DOWN_UP, cci);
-					log.info(s);
-					MailHelper.sendEmail(s);
-				}
-				// analogicky
-				if (result == IndicatorHelper.CROSSOVER_UP_DOWN && macd[0] < 0 && cci < 0) {
+					proccessMessage(s);
+					ValueContainer.putCrossoverDate(period, instrument, null);
+					ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
+				} else if (result == IndicatorHelper.CROSSOVER_UP_DOWN && macd[0] < 0 && cci < 0) {
 					String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_UP_DOWN, cci);
-					log.info(s);
-					MailHelper.sendEmail(s);
+					proccessMessage(s);
+					ValueContainer.putCrossoverDate(period, instrument, null);
+					ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
+				} else {
+					// zapamatuji si cas prekrizeni
+					ValueContainer.putCrossoverDate(period, instrument, new Date(bidBar.getTime()));
+					// nastavim typ prekrizeni
+					ValueContainer.putLastCrossoverType(period, instrument, result);
 				}
-				// zapamatuji si cas prekrizeni
-				ValueContainer.putCrossoverDate(period, instrument, new Date(bidBar.getTime()));
-				// nastavim typ prekrizeni
-				ValueContainer.putLastCrossoverType(period, instrument, result);
-			}
-
-			// pokud nedoslo k prekrizeni
-			if (result == IndicatorHelper.CROSSOVER_NONE) {
-				// a je nastavena posledni doba prekrizeni
+			} else {
+				// a pokud nedoslo k prekrizeni a je nastavena posledni doba prekrizeni
 				if (ValueContainer.getCrossoverDate(period, instrument) != null) {
 					// a byly splneny ostatni podminky prekrizeni
 					if (ValueContainer.getLastCrossoverType(period, instrument) == IndicatorHelper.CROSSOVER_DOWN_UP && macd[0] > 0 && cci > 0) {
 						String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_DOWN_UP, cci);
-						log.info(s);
-						MailHelper.sendEmail(s);
+						proccessMessage(s);
 						ValueContainer.putCrossoverDate(period, instrument, null);
 						ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
 					}
 
 					if (ValueContainer.getLastCrossoverType(period, instrument) == IndicatorHelper.CROSSOVER_UP_DOWN && macd[0] < 0 && cci < 0) {
 						String s = getMessage(instrument, bidBar, period, IndicatorHelper.CROSSOVER_UP_DOWN, cci);
-						log.info(s);
-						MailHelper.sendEmail(s);
+						proccessMessage(s);
 						ValueContainer.putCrossoverDate(period, instrument, null);
 						ValueContainer.putLastCrossoverType(period, instrument, IndicatorHelper.CROSSOVER_NONE);
 					}
@@ -176,15 +147,27 @@ public class VladoStrategy extends MyStrategy {
 		System.out.println("cci: " + cciParam + ", emaslow: " + emaSlowParam + ", emafast: " + emaFastParam + ", macd: " + macdAParam + ", " + macdBParam + ", " + macdCParam);
 	}
 
+	public void proccessMessage(String s) {
+		log.info(s);
+		MailHelper.sendEmail(s);
+	}
+
+	public void enterPosition(Instrument instrument, IBar bidBar, OrderCommand orderCommand, double amount) throws JFException {
+		if (engine.getOrders().size() > 0)
+			return;
+
+		engine.submitOrder(getLabel(instrument), instrument, orderCommand, amount);
+	}
+
 	@Override
 	public void onAccount(IAccount arg0) throws JFException {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void onMessage(IMessage arg0) throws JFException {
 		// TODO Auto-generated method stub
-		
+
 	}
 }

@@ -1,4 +1,4 @@
-package cz.tradingods.optimiser;
+package cz.tradingods.optimizer;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;

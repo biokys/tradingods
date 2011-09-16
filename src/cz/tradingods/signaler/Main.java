@@ -39,35 +39,14 @@ import com.dukascopy.api.OfferSide;
 import com.dukascopy.api.Period;
 
 import cz.tradingods.common.PropertyHelper;
+import cz.tradingods.optimizer.FileHelper;
 import cz.tradingods.signaler.strategies.VladoStrategy;
 
-import java.awt.BorderLayout;
-import java.awt.Button;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.Frame;
-import java.awt.TextArea;
-import java.awt.Toolkit;
-import java.awt.peer.ComponentPeer;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
-
-import javax.swing.BorderFactory;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
 
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
@@ -76,106 +55,115 @@ import org.slf4j.Logger;
  * This small program demonstrates how to initialize Dukascopy client and start a strategy
  */
 public class Main {
-    private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
+	private static final Logger log = LoggerFactory.getLogger(Main.class);
 
-    
-    //url of the DEMO jnlp
-    private static String jnlpUrl = PropertyHelper.getFxApiJNLP();
-    //user name
-    private static String userName = PropertyHelper.getFxApiUsername();
-    //password
-    private static String password = PropertyHelper.getFxApiPassword();
-    
+	private static final boolean HISTORICAL_DATA = PropertyHelper.onHistoricalData();
+	private static final Date[] HISTORICAL_DATA_INTERVAL = PropertyHelper.getHistoricalDataInterval();
 
-    public static void main(String[] args) throws Exception {
-        //get the instance of the IClient interface
-        //final IClient client = ClientFactory.getDefaultInstance();
-        final ITesterClient client = TesterFactory.getDefaultInstance();
+	//url of the DEMO jnlp
+	private static String jnlpUrl = PropertyHelper.getFxApiJNLP();
+	//user name
+	private static String userName = PropertyHelper.getFxApiUsername();
+	//password
+	private static String password = PropertyHelper.getFxApiPassword();
 
-        //set the listener that will receive system events
-        client.setSystemListener(new ISystemListener() {
-            private int lightReconnects = 3;
 
-        	@Override
-        	public void onStart(long processId) {
-                LOGGER.info("Strategy started: " + processId);
-               
-        	}
+	public static void main(String[] args) throws Exception {
+		log.info("Signaler started on " + new Date().toString());
+		final IClient client;
+
+		if (!HISTORICAL_DATA) {
+			client = ClientFactory.getDefaultInstance();
+		} else {
+			client = TesterFactory.getDefaultInstance();
+		}
+
+		//set the listener that will receive system events
+		client.setSystemListener(new ISystemListener() {
+			private int lightReconnects = 3;
+
+			@Override
+			public void onStart(long processId) {
+				log.info("Strategy started: " + processId);
+
+			}
 
 			@Override
 			public void onStop(long processId) {
-                LOGGER.info("Strategy stopped: " + processId);
-                if (client.getStartedStrategies().size() == 0) {
-                    System.exit(0);
-                }
+				log.info("Strategy stopped: " + processId);
+				if (client.getStartedStrategies().size() == 0) {
+					System.exit(0);
+				}
 			}
 
 			@Override
 			public void onConnect() {
-                LOGGER.info("Connected");
-                lightReconnects = 3;
+				log.info("Connected");
+				lightReconnects = 3;
 			}
 
 			@Override
 			public void onDisconnect() {
-                LOGGER.warn("Disconnected");
-                if (lightReconnects > 0) {
-                    client.reconnect();
-                    --lightReconnects;
-                } else {
-                    try {
-                        //sleep for 10 seconds before attempting to reconnect
-                        Thread.sleep(10000);
-                    } catch (InterruptedException e) {
-                        //ignore
-                    }
-                    try {
-                        client.connect(jnlpUrl, userName, password);
-                    } catch (Exception e) {
-                        LOGGER.error(e.getMessage(), e);
-                    }
-                }
+				log.warn("Disconnected");
+				if (lightReconnects > 0) {
+					client.reconnect();
+					--lightReconnects;
+				} else {
+					try {
+						//sleep for 10 seconds before attempting to reconnect
+						Thread.sleep(10000);
+					} catch (InterruptedException e) {
+						//ignore
+					}
+					try {
+						client.connect(jnlpUrl, userName, password);
+					} catch (Exception e) {
+						log.error(e.getMessage(), e);
+					}
+				}
 			}
 		});
 
-        LOGGER.info("Connecting...");
-        //connect to the server using jnlp, user name and password
-        client.connect(jnlpUrl, userName, password);
-        //wait for it to connect
-        int i = 10; //wait max ten seconds
-        while (i > 0 && !client.isConnected()) {
-            Thread.sleep(1000);
-            i--;
-        }
-        if (!client.isConnected()) {
-            LOGGER.error("Failed to connect Dukascopy servers");
-            System.exit(1);
-        }
-        
-        
-        
-        //subscribe to the instruments
-        Set<Instrument> instruments = new HashSet<Instrument>();
-        List<String> list = PropertyHelper.getInstruments();
-        for (String string : list) {
-        	Instrument ins = Instrument.fromString(string);
+		log.info("Connecting...");
+		//connect to the server using jnlp, user name and password
+		client.connect(jnlpUrl, userName, password);
+		//wait for it to connect
+		int i = 10; //wait max ten seconds
+		while (i > 0 && !client.isConnected()) {
+			Thread.sleep(1000);
+			i--;
+		}
+		if (!client.isConnected()) {
+			log.error("Failed to connect Dukascopy servers");
+			System.exit(1);
+		}
+
+
+
+		//subscribe to the instruments
+		Set<Instrument> instruments = new HashSet<Instrument>();
+		List<String> list = PropertyHelper.getInstruments();
+		for (String string : list) {
+			Instrument ins = Instrument.fromString(string);
 			instruments.add(ins);
 		}
-        
-        LOGGER.info("Subscribing instruments...");
-        client.setSubscribedInstruments(instruments);
-        LOGGER.info("Downloading data");
 
-        Future<?> future = client.downloadData(null);
-        //wait for downloading to complete
-        future.get();
+		log.info("Subscribing instruments...");
+		client.setSubscribedInstruments(instruments);
+		log.info("Downloading data");
 
-        
-        //start the strategy
-        LOGGER.info("Starting strategy");
-        client.startStrategy(new VladoStrategy());
-        //now it's running
-    }
-    
-    
+		if (HISTORICAL_DATA) {
+			((ITesterClient)client).setDataInterval(Period.TICK, OfferSide.ASK, ITesterClient.InterpolationMethod.OPEN_TICK, HISTORICAL_DATA_INTERVAL[0].getTime(), HISTORICAL_DATA_INTERVAL[1].getTime());
+			Future<?> future = ((ITesterClient)client).downloadData(null);
+			future.get();
+		}
+
+
+		//start the strategy
+		log.info("Starting strategy");
+		client.startStrategy(new VladoStrategy());
+		//now it's running
+	}
+
+
 }

@@ -27,7 +27,7 @@
  * OF LIABILITY, ARISING OUT OF THE USE OF OR INABILITY TO USE THIS SOFTWARE, 
  * EVEN IF DUKASCOPY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
  */
-package cz.tradingods.optimiser;
+package cz.tradingods.optimizer;
 
 import com.dukascopy.api.system.ISystemListener;
 import com.dukascopy.api.system.IClient;
