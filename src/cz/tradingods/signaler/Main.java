@@ -60,7 +60,7 @@ public class Main {
 	private static final Logger log = LoggerFactory.getLogger(Main.class);
 
 	public static final boolean HISTORICAL_DATA = PropertyHelper.onHistoricalData();
-	public static final boolean TRADING_ENABLED = true;
+	public static final boolean TRADING_ENABLED = PropertyHelper.isTradingEnabled();
 	private static final Date[] HISTORICAL_DATA_INTERVAL = PropertyHelper.getHistoricalDataInterval();
 	
 	//url of the DEMO jnlp
@@ -80,7 +80,9 @@ public class Main {
 		} else {
 			client = TesterFactory.getDefaultInstance();
 		}
-		PropertyHelper.setOptimizationParams("emaslow=13", "emafast=3", "cci=13", "macd=10,23,10", "pt=80", "sl=30");
+		
+		//PropertyHelper.setOptimizationParams("emaslow=13", "emafast=3", "cci=13", "macd=10,23,10", "pt=80", "sl=30");
+		
 		//set the listener that will receive system events
 		client.setSystemListener(new ISystemListener() {
 			private int lightReconnects = 3;
@@ -95,7 +97,8 @@ public class Main {
 			public void onStop(long processId) {
 				log.info("Strategy stopped: " + processId);
 				try {
-					((ITesterClient)client).createReport(processId, new File("report.html"));
+					if (client instanceof ITesterClient)
+						((ITesterClient)client).createReport(processId, new File("report.html"));
 				} catch (Exception e) {
 					e.printStackTrace();
 				}

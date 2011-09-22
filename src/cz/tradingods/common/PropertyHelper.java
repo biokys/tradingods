@@ -98,6 +98,10 @@ public class PropertyHelper {
 	public static boolean onHistoricalData() {
 		return getBooleanProperty("historical.backtest");
 	}
+	
+	public static boolean isTradingEnabled() {
+		return getBooleanProperty("trading");
+	}
 
 	private static SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm") {{setTimeZone(TimeZone.getTimeZone("GMT"));}};;
 	private static Date getDate(String str) throws ParseException {
