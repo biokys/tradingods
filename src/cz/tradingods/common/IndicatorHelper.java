@@ -15,11 +15,11 @@ public class IndicatorHelper {
 		int result = CROSSOVER_NONE;
 		// UP -> DOWN : ind1 -> ind2
 		if ((indicator1[1] < indicator1[0]) && (indicator1[1] < indicator2[1]) && (indicator1[0] >= indicator2[0])) {
-			return CROSSOVER_UP_DOWN;
+			return CROSSOVER_DOWN_UP;
 		}
 		// DOWN -> UP : ind1 -> ind2
 		if ((indicator1[1] > indicator1[0]) && (indicator1[1] > indicator2[1]) && (indicator1[0] <= indicator2[0])) {
-			return CROSSOVER_DOWN_UP;
+			return CROSSOVER_UP_DOWN;
 		}
 
 		return result;

@@ -81,7 +81,7 @@ public class Main {
 			client = TesterFactory.getDefaultInstance();
 		}
 		
-		//PropertyHelper.setOptimizationParams("emaslow=13", "emafast=3", "cci=13", "macd=10,23,10", "pt=80", "sl=30");
+		PropertyHelper.setOptimizationParams("vladostrategy", "emaslow=13", "emafast=3", "cci=13", "macd=10,23,10", "pt=80", "sl=30");
 		
 		//set the listener that will receive system events
 		client.setSystemListener(new ISystemListener() {
@@ -164,7 +164,7 @@ public class Main {
 		log.info("Downloading data");
 
 		if (HISTORICAL_DATA) {
-			((ITesterClient)client).setDataInterval(Period.TICK, OfferSide.ASK, ITesterClient.InterpolationMethod.OPEN_TICK, HISTORICAL_DATA_INTERVAL[0].getTime(), HISTORICAL_DATA_INTERVAL[1].getTime());
+			((ITesterClient)client).setDataInterval(Period.TICK, OfferSide.BID, ITesterClient.InterpolationMethod.OPEN_TICK, HISTORICAL_DATA_INTERVAL[0].getTime(), HISTORICAL_DATA_INTERVAL[1].getTime());
 			Future<?> future = ((ITesterClient)client).downloadData(null);
 			future.get();
 		}

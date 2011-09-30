@@ -24,13 +24,15 @@ public class PropertyHelper {
 	private static boolean isOptimization = false;
 
 	private static Map<String, String> mapParams = new HashMap<String, String>();
+	private static Map<String, Map<String, String>> mapStrategy = new HashMap<String, Map<String,String>>();
 
-	public static void setOptimizationParams(String... values) {
+	public static void setOptimizationParams(String strategy, String... values) {
 		try {
 			for (String value : values) {
 				String[] parsed = value.split("\\=");
 				mapParams.put(parsed[0], parsed[1]);
 			}
+			mapStrategy.put(strategy, mapParams);
 			isOptimization = true;
 			log.warn("Switching to internal properties for optimization");
 		} catch (Exception e) {};
@@ -124,7 +126,8 @@ public class PropertyHelper {
 	public static int[] getCustomParams(String strategyName, String paramName) {
 		String[] splitString;
 		if (isOptimization) {
-			splitString = mapParams.get(paramName).split("\\,");
+			Map<String, String> map = mapStrategy.get(strategyName);
+			splitString = map.get(paramName).split("\\,");
 		} else {
 			String s = getStringProperty(strategyName + "." + paramName);
 			splitString = s.split("\\,");
@@ -137,9 +140,10 @@ public class PropertyHelper {
 	}
 
 	public static int getCustomParam(String strategyName, String paramName) {
-		if (isOptimization)
-			return new Integer(mapParams.get(paramName)).intValue();
-		else
+		if (isOptimization) {
+			Map<String, String> map = mapStrategy.get(strategyName);
+			return new Integer(map.get(paramName)).intValue();
+		} else
 			return getIntProperty(strategyName + "." + paramName);
 	}
 
