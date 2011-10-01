@@ -1,4 +1,4 @@
-package cz.tradingods.signaler;
+package cz.tradingods.common;
 
 import java.util.Date;
 import java.util.HashMap;

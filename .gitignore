@@ -4,3 +4,4 @@ dist/
 logs/
 .settings/
 *.class
+*.log

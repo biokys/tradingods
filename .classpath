@@ -21,5 +21,6 @@
 	<classpathentry kind="lib" path="libs/mailapi.jar"/>
 	<classpathentry kind="lib" path="libs/activation.jar"/>
 	<classpathentry kind="lib" path="libs/smtp.jar"/>
+	<classpathentry kind="lib" path="libs/guava-r07.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

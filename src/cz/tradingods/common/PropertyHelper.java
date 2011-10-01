@@ -1,9 +1,11 @@
 package cz.tradingods.common;
 
+import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,20 +22,25 @@ public class PropertyHelper {
 	private static Logger log = Logger.getLogger(PropertyHelper.class);
 
 	private static final String BUNDLE = "config";
+	
+	private static final String BUNDLE_OPTIMIZE = "config_optimizer";
 
-	private static boolean isOptimization = false;
+	private static boolean isOptimization = isOptimizerEnabled();
 
 	private static Map<String, String> mapParams = new HashMap<String, String>();
-	private static Map<String, Map<String, String>> mapStrategy = new HashMap<String, Map<String,String>>();
+	private static Map<Long, Map<String, String>> mapStrategyNumber = new HashMap<Long, Map<String,String>>();
+	private static Map<String, Map<Long, Map<String, String>>> mapStrategy = new HashMap<String, Map<Long, Map<String,String>>>();
+	
+	private static Date startDate = new Date();
 
-	public static void setOptimizationParams(String strategy, String... values) {
+	public static void setOptimizationParams(String strategy, long strategyId, String... values) {
 		try {
 			for (String value : values) {
 				String[] parsed = value.split("\\=");
 				mapParams.put(parsed[0], parsed[1]);
 			}
-			mapStrategy.put(strategy, mapParams);
-			isOptimization = true;
+			mapStrategyNumber.put(strategyId, mapParams);
+			mapStrategy.put(strategy, mapStrategyNumber);
 			log.warn("Switching to internal properties for optimization");
 		} catch (Exception e) {};
 	}
@@ -88,10 +95,6 @@ public class PropertyHelper {
 			int num = new Integer(parts[0]).intValue();
 			String period = parts[1];
 			Period p = Period.createCustomPeriod(Unit.valueOf(period), num);
-			/*if (!(Period.isPeriodCompliant(p))) {
-				log.warn(p.name() + " neni povoleny TF. Povolene jsou: TICK, TEN_SECS, ONE_MIN, FIVE_MINS, TEN_MINS, FIFTEEN_MINS, THIRTY_MINS, ONE_HOUR, FOUR_HOURS, DAILY, WEEKLY, MONTHLY");
-				continue;
-			}*/
 			periods.add(p);
 		}
 		return periods;
@@ -104,8 +107,12 @@ public class PropertyHelper {
 	public static boolean isTradingEnabled() {
 		return getBooleanProperty("trading");
 	}
+	
+	public static boolean isOptimizerEnabled() {
+		return getBooleanProperty("use.optimizer");
+	}
 
-	private static SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy HH:mm") {{setTimeZone(TimeZone.getTimeZone("GMT"));}};;
+	private static SimpleDateFormat sdf = new SimpleDateFormat("dd.MM.yyyy") {{setTimeZone(TimeZone.getTimeZone("GMT"));}};;
 	private static Date getDate(String str) throws ParseException {
 		return sdf.parse(str);
 	}
@@ -122,29 +129,45 @@ public class PropertyHelper {
 		}
 		return dates;
 	}
-
-	public static int[] getCustomParams(String strategyName, String paramName) {
-		String[] splitString;
-		if (isOptimization) {
-			Map<String, String> map = mapStrategy.get(strategyName);
-			splitString = map.get(paramName).split("\\,");
-		} else {
-			String s = getStringProperty(strategyName + "." + paramName);
-			splitString = s.split("\\,");
-		}
-		int[] result = new int[splitString.length];
-		for (int i = 0;i< splitString.length;i++) {
-			result[i] = new Integer(splitString[i]).intValue();
-		}
+	
+	public static int[] getHistoricalDataHourInterval() {
+		String str = getStringProperty("historical.backtest.hour.interval");
+		String[] strHours = str.split("\\-");
+		int[] result = new int[2];
+		result[0] = new Integer(strHours[0]).intValue();
+		result[1] = new Integer(strHours[1]).intValue();
 		return result;
 	}
+	
+	public static String[] getActiveStrategies() {
+		String s = getStringProperty("active.strategies");
+		String[] splitString = s.split("\\|");
+		return splitString;
+	}
 
-	public static int getCustomParam(String strategyName, String paramName) {
+	public static int getConfigParam(String strategyName, long strategyId, String paramName) {
 		if (isOptimization) {
-			Map<String, String> map = mapStrategy.get(strategyName);
+			 Map<Long,Map<String,String>> mapS = mapStrategy.get(strategyName);
+			Map<String, String> map = mapS.get(strategyId);
 			return new Integer(map.get(paramName)).intValue();
 		} else
 			return getIntProperty(strategyName + "." + paramName);
+	}
+	
+	public static List<String> getAllOptimizationParamsForStrategy(String strategyName) {
+		List<String> list = new ArrayList<String>();
+		ResourceBundle resources = ResourceBundle.getBundle(BUNDLE_OPTIMIZE);
+		Enumeration<String> keys = resources.getKeys();
+		while (keys.hasMoreElements()) {
+			String s = keys.nextElement();
+			if (s.startsWith(strategyName))
+				list.add(s);
+		}
+		return list;
+	}
+	
+	public static String getStrategyClassName(String strategyName) {
+			return getStringProperty(strategyName + ".class");
 	}
 
 	public static boolean sendEmails() {
@@ -166,5 +189,27 @@ public class PropertyHelper {
 		return new Integer(resources.getString(key)).intValue();
 	}
 
+	/**
+	 * Vraci pole integeru pro zadany klic - pracuje nad konfigurakem pro Optimizer
+	 * @param key
+	 * @return
+	 */
+	public static Integer[] getIntPropertyForOptimizer(String key) {
+		ResourceBundle resources = ResourceBundle.getBundle(BUNDLE_OPTIMIZE);
+		String value = resources.getString(key);
+		String[] values = value.split("\\,");
+		Integer[] result = new Integer[values.length];
+		for (int i = 0; i < result.length; i++) {
+			result[i] = new Integer(values[i]).intValue();
+		}
+		return result;
+	}
+	
+	public static String getReportDir() {
+		String s = getStringProperty("report.dir");
+		s = s + "/" + startDate.getTime();
+		new File(s).mkdir();
+		return s;
+	}
 }
 
