@@ -45,7 +45,12 @@ public class Helper {
 		c.setTime(from);
 		Calendar cTo = Calendar.getInstance();
 		cTo.setTime(to);
-		while (c.before(cTo)) {
+		fromto = new Date[2];
+		fromto[0] = c.getTime();
+		fromto[1] = cTo.getTime();
+		list.add(fromto);
+		return list;
+		/*while (c.before(cTo)) {
 			if (c.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY || c.get(Calendar.DAY_OF_WEEK) == Calendar.WEDNESDAY) {
 				Date lFrom = c.getTime();
 				Calendar lCal = Calendar.getInstance();
@@ -59,7 +64,7 @@ public class Helper {
 			}
 			c.add(Calendar.DAY_OF_YEAR, 1);
 		}
-		return list;
+		return list;*/
 	}
 
 	public static List<Date[]> getDays(int year, int month) { 

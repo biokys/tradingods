@@ -22,7 +22,8 @@ set classpath=%classpath%;libs/transport-client-2.3.54.jar
 set classpath=%classpath%;libs/smtp.jar
 set classpath=%classpath%;libs/mailapi.jar
 set classpath=%classpath%;libs/activation.jar
+set classpath=%classpath%;libs/guava-r07.jar
 set classpath=%classpath%;bin/
 set classpath=%classpath%;config/
 
-java cz.tradingods.signaler.Main
+java cz.tradingods.Main

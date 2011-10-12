@@ -2,6 +2,7 @@ package cz.tradingods.signaler.strategies;
 
 import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
@@ -40,6 +41,8 @@ public class VladoStrategy extends MyStrategy {
 
 	double startingBalance;
 
+	Calendar c = Calendar.getInstance();
+
 	public void onStart(IContext context) throws JFException {
 		this.context = context;
 		engine = context.getEngine();
@@ -66,9 +69,14 @@ public class VladoStrategy extends MyStrategy {
 	public void onBar(Instrument instrument, Period period, IBar askBar, IBar bidBar) throws JFException {
 		if (!periods.contains(period)) 
 			return;
+
 		Date d = new Date(bidBar.getTime());
-		if (d.getHours() < hourFrom || d.getHours() > hourTo)
+		c.setTime(d);
+		if (c.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || c.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY)
 			return;
+		if (hourFrom >= 0 && hourTo >=0)
+			if (d.getHours() < hourFrom || d.getHours() > hourTo)
+				return;
 
 		IBar nowBar = history.getBar(instrument, period, OfferSide.BID, 0);
 		IBar prevBar = history.getBar(instrument, period, OfferSide.BID, 1);

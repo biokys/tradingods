@@ -82,7 +82,6 @@ public class Main {
 
 	public static void main(String[] args) throws Exception {
 		log.info("Started on " + new Date().toString());
-		//Helper.prepareFileSystem();
 		final IClient client;
 
 		if (!HISTORICAL_DATA) {
@@ -105,22 +104,31 @@ public class Main {
 				log.info("Strategy stopped: " + processId);
 				try {
 					if (client instanceof ITesterClient) {
-						HelpClass h = bindIdMap.get(processId);
-						new File(PropertyHelper.getReportDir() + "/" + h.strategyName).mkdir();
-						File f = new File(PropertyHelper.getReportDir() + "/" + h.strategyName + "/" + processId + "-optimize-" + h.readableParams + ".html");
-						((ITesterClient)client).createReport(processId, f);
+						if (TRADING_ENABLED) {
+							HelpClass h = bindIdMap.get(processId);
+							new File(PropertyHelper.getReportDir() + "/" + h.strategyName).mkdir();
+							File f;
+							if (OPTIMIZER_ENABLED) {
+								f = new File(PropertyHelper.getReportDir() + "/" + h.strategyName + "/" + processId + "-optimize-" + h.readableParams + ".html");
+							} else {
+								f = new File(PropertyHelper.getReportDir() + "/" + h.strategyName + "/" + processId + "-backtest.html");
+							}
+							((ITesterClient)client).createReport(processId, f);
+						}
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
 				if (client.getStartedStrategies().size() == 0) {
-					for (String strategyName : PropertyHelper.getActiveStrategies()) {
-						Helper.findMaxProfitParams(strategyName);
-					}
-					
-					for (String strategyName : PropertyHelper.getActiveStrategies()) {
-						Map<Date, HelpClass> m = Helper.getValuesForBackTest(strategyName);
-						Helper.createFinalFile(strategyName, m);
+					if (OPTIMIZER_ENABLED) {
+						for (String strategyName : PropertyHelper.getActiveStrategies()) {
+							Helper.findMaxProfitParams(strategyName);
+						}
+
+						for (String strategyName : PropertyHelper.getActiveStrategies()) {
+							Map<Date, HelpClass> m = Helper.getValuesForBackTest(strategyName);
+							Helper.createFinalFile(strategyName, m);
+						}
 					}
 					System.exit(0);
 				}
@@ -178,16 +186,16 @@ public class Main {
 		log.info("Subscribing instruments...");
 		client.setSubscribedInstruments(instruments);
 
-		Future<?> future = ((ITesterClient)client).downloadData(null);
-		future.get();
+		if (HISTORICAL_DATA) {
+			Future<?> future = ((ITesterClient)client).downloadData(null);
+			future.get();
+		}
 
 		// pouze signaler
 		if (!OPTIMIZER_ENABLED) {
 			if (HISTORICAL_DATA) {
 				log.info("Downloading data");
 				((ITesterClient)client).setDataInterval(Period.TICK, OfferSide.BID, ITesterClient.InterpolationMethod.OPEN_TICK, HISTORICAL_DATA_INTERVAL[0].getTime(), HISTORICAL_DATA_INTERVAL[1].getTime());
-				//Future<?> future = ((ITesterClient)client).downloadData(null);
-				//future.get();
 			}
 			String[] strategies = PropertyHelper.getActiveStrategies();
 			for (String strategy : strategies) {
@@ -198,7 +206,11 @@ public class Main {
 				// pak nechame instanci aby si natahla parametry
 				strategyInstance.setParams();
 				log.info("Starting signaler,  strategy " + strategy);
-				client.startStrategy(strategyInstance);
+				long l = client.startStrategy(strategyInstance);
+				HelpClass h = new HelpClass();
+				h.readableParams = strategyInstance.readableParams;
+				h.strategyName = strategyInstance.getStrategyName();
+				bindIdMap.put(l, h);
 			}
 		} else {
 			// optimizer
@@ -272,7 +284,7 @@ public class Main {
 			}
 		}
 	}
-	
+
 }
 
 
