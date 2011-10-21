@@ -45,12 +45,12 @@ public class Helper {
 		c.setTime(from);
 		Calendar cTo = Calendar.getInstance();
 		cTo.setTime(to);
-		fromto = new Date[2];
+		/*fromto = new Date[2];
 		fromto[0] = c.getTime();
 		fromto[1] = cTo.getTime();
 		list.add(fromto);
-		return list;
-		/*while (c.before(cTo)) {
+		return list;*/
+		while (c.before(cTo)) {
 			if (c.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY || c.get(Calendar.DAY_OF_WEEK) == Calendar.WEDNESDAY) {
 				Date lFrom = c.getTime();
 				Calendar lCal = Calendar.getInstance();
@@ -64,7 +64,7 @@ public class Helper {
 			}
 			c.add(Calendar.DAY_OF_YEAR, 1);
 		}
-		return list;*/
+		return list;
 	}
 
 	public static List<Date[]> getDays(int year, int month) { 
@@ -103,7 +103,7 @@ public class Helper {
 			while (it.hasNext()) {
 				Date d = it.next();
 				HelpClass h = m.get(d);
-				out.write( d.getTime() + ";" + h.readableParams + "\n");				
+				out.write( strategyName + ";" + d.getTime() + ";" + h.readableParams + "\n");				
 			}
 
 			out.close(); 
@@ -169,6 +169,33 @@ public class Helper {
 		}
 	}
 
+	public static Map<String, BackTestEntity> getDataForBacktest(String finalFileName) {
+		Map<String, BackTestEntity> map = new HashMap<String, BackTestEntity>();
+		List<Date[]> list = new ArrayList<Date[]>();
+		File file = new File(finalFileName);
+		if (!file.isFile())
+			return map;
+		String readableParams = null;
+		try{
+			FileInputStream fstream = new FileInputStream(file);
+			DataInputStream in = new DataInputStream(fstream);
+			BufferedReader br = new BufferedReader(new InputStreamReader(in));
+			String strLine;
+			while ((strLine = br.readLine()) != null)   {
+				BackTestEntity b = new BackTestEntity();
+				String[] strs = strLine.split("\\;");
+				b.from  = new Date(strs[0]);
+				b.to = new Date(strs[0] + INTERVAL_IN_MS);
+				b.params = strs[2];
+				map.put(strs[1], b);
+			}
+			in.close();
+		}catch (Exception e){
+			System.err.println("Error: " + e.getMessage());
+		}
+		return map;
+	}
+
 	public static Map<Date, HelpClass> getValuesForBackTest(String strategyName) {
 		Map<Date, HelpClass> map = new HashMap<Date, HelpClass>();
 		File[] files = new File(PropertyHelper.getReportDir() + "/" + strategyName).listFiles(new ProcFileFilter("optimize"));
@@ -213,7 +240,7 @@ public class Helper {
 		}
 		if (input[1] == 0)
 			return new Integer[]  {input[0]};
-		
+
 		List<Integer> list = new ArrayList<Integer>();
 		for (int i=input[0];i<=input[2];i+=input[1])  {
 			list.add(i);
